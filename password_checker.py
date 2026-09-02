@@ -11,8 +11,8 @@ def check_password(password: str) -> dict:
         "length_ok": len(password) >= 8,
         "has_upper": bool(re.search(r"[A-Z]", password)),
         "has_lower": bool(re.search(r"[a-z]", password)),
-        "has_digit": bool(re.search(r"\d", password)),
-        "has_symbol": bool(re.search(r"[!@#$%^&*(),.?\":{}|<>]", password)),
+        "has_digit": bool(re.search(r"0-9", password)),
+        "has_symbol": bool(re.search(r"[^A-Za-z0-9]", password)),
     }
 
     results["score"] = sum([
