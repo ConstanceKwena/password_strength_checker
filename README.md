@@ -1,41 +1,48 @@
-# password_strength_checker
+# Password Strength Checker
 
+A simple Python password strength checker.
 
-A command-line password strength checker written in Python.
+## Requirements
 
-## Features
+The checker tests five conditions:
 
-- **Basic checks**: length (≥8), uppercase, lowercase, digit, symbol
-- **Blacklist check**: flags passwords found in a list of common/leaked passwords (`common_passwords.txt`)
-- **Entropy scoring**: estimates password strength in bits using the standard `length × log2(pool_size)` formula
-- **Have I Been Pwned integration**: optionally checks the password against known data breaches via the [HIBP k-anonymity API](https://haveibeenpwned.com/API/v3#PwnedPasswords) — only a 5-character hash prefix is ever sent, never the password itself
-- **Automated tests**: pytest suite covering all of the above (network calls are mocked, so tests run offline)
+- At least 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+- At least one special character
 
-## Setup
+The score is out of 5:
 
-```bash
-pip install -r requirements.txt
-```
+- 0–2: Weak
+- 3–4: Moderate
+- 5: Strong
 
-## Usage
+## Run the program
 
 ```bash
 python password_checker.py
 ```
 
-You'll be prompted to enter a password, then shown a breakdown of which checks it passes, an overall strength rating, an entropy estimate, and (optionally) whether it's appeared in a known breach.
+## Run the tests
 
-## Running the tests
+Install pytest if needed:
 
 ```bash
-pytest -v
+python -m pip install pytest
+```
+
+Then run:
+
+```bash
+python -m pytest -q
 ```
 
 ## Project structure
 
-```
-password_checker.py       # main script + all logic (importable functions)
-common_passwords.txt      # blacklist of common passwords
-test_password_checker.py  # pytest test suite
-requirements.txt
+```text
+password_strength_checker/
+├── password_checker.py
+├── test_password_checker.py
+└── README.md
 ```
