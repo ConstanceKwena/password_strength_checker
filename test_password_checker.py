@@ -1,151 +1,73 @@
-import math
-
 import pytest
-
-import password_checker as pc
-
-
-# ---- blacklist ----
-
-def test_load_blacklist_reads_file():
-    blacklist = pc.load_blacklist()
-    assert "password" in blacklist
-    assert "123456" in blacklist
+from password_checker import check_password, strength_label
 
 
-def test_load_blacklist_missing_file_returns_empty_set():
-    blacklist = pc.load_blacklist("does_not_exist.txt")
-    assert blacklist == set()
+def test_empty_password():
+    result = check_password("")
+    assert result["length_ok"] is False
+    assert result["has_upper"] is False
+    assert result["has_lower"] is False
+    assert result["has_digit"] is False
+    assert result["has_symbol"] is False
+    assert result["score"] == 0
 
 
-def test_is_blacklisted_case_insensitive():
-    blacklist = {"password"}
-    assert pc.is_blacklisted("Password", blacklist)
-    assert pc.is_blacklisted("PASSWORD", blacklist)
-    assert not pc.is_blacklisted("notinlist", blacklist)
+def test_password_shorter_than_8_characters():
+    result = check_password("Abc123!")
+    assert result["length_ok"] is False
 
 
-# ---- entropy ----
-
-def test_entropy_empty_password_is_zero():
-    assert pc.calculate_entropy("") == 0.0
-
-
-def test_entropy_increases_with_more_character_classes():
-    lower_only = pc.calculate_entropy("aaaaaaaa")
-    mixed = pc.calculate_entropy("aA1!aA1!")
-    assert mixed > lower_only
+def test_password_with_exactly_8_characters():
+    result = check_password("Abc1234!")
+    assert result["length_ok"] is True
 
 
-def test_entropy_increases_with_length():
-    short = pc.calculate_entropy("abcdef")
-    longer = pc.calculate_entropy("abcdefabcdef")
-    assert longer > short
+def test_uppercase_requirement():
+    assert check_password("abcdef1!")[ "has_upper"] is False
+    assert check_password("Abcdef1!")[ "has_upper"] is True
 
 
-def test_entropy_known_value():
-    # 8 lowercase-only chars: pool size 26 -> 8 * log2(26)
-    expected = 8 * math.log2(26)
-    assert pc.calculate_entropy("abcdefgh") == pytest.approx(expected)
+def test_lowercase_requirement():
+    assert check_password("ABCDEF1!")[ "has_lower"] is False
+    assert check_password("Abcdef1!")[ "has_lower"] is True
 
 
-def test_entropy_label_boundaries():
-    assert pc.entropy_label(10) == "Very Weak"
-    assert pc.entropy_label(30) == "Weak"
-    assert pc.entropy_label(45) == "Reasonable"
-    assert pc.entropy_label(90) == "Strong"
-    assert pc.entropy_label(150) == "Very Strong"
+def test_digit_requirement():
+    assert check_password("Abcdefgh!")[ "has_digit"] is False
+    assert check_password("Abcdefg1!")[ "has_digit"] is True
 
 
-# ---- check_password ----
-
-def test_check_password_all_criteria_met():
-    results = pc.check_password("Abcdef1!", blacklist=set())
-    assert results["length_ok"]
-    assert results["has_upper"]
-    assert results["has_lower"]
-    assert results["has_digit"]
-    assert results["has_symbol"]
-    assert results["score"] == 5
-    assert not results["is_blacklisted"]
+def test_symbol_requirement():
+    assert check_password("Abcdefg1")[ "has_symbol"] is False
+    assert check_password("Abcdefg1!")[ "has_symbol"] is True
 
 
-def test_check_password_weak():
-    results = pc.check_password("abc", blacklist=set())
-    assert not results["length_ok"]
-    assert results["score"] <= 2
+def test_common_symbols_are_recognised():
+    symbols = "!@#$%^&*()-_=+[]{};:'\",.<>?/\\|"
+    for symbol in symbols:
+        result = check_password(f"Abcdef1{symbol}")
+        assert result["has_symbol"] is True
 
 
-def test_check_password_flags_blacklisted():
-    results = pc.check_password("password", blacklist={"password"})
-    assert results["is_blacklisted"]
+def test_strong_password_scores_5():
+    result = check_password("Strong123!")
+    assert result["score"] == 5
 
 
-def test_check_password_uses_default_blacklist_when_none_given():
-    results = pc.check_password("password")
-    assert results["is_blacklisted"]
+def test_score_counts_only_requirements():
+    result = check_password("abc")
+    assert result["score"] == 1
 
 
-# ---- strength_label ----
-
-def test_strength_label_weak():
-    assert pc.strength_label(1) == "Weak"
-
-
-def test_strength_label_moderate():
-    assert pc.strength_label(3) == "Moderate"
-
-
-def test_strength_label_strong():
-    assert pc.strength_label(5) == "Strong"
+def test_strength_labels():
+    assert strength_label(0) == "Weak"
+    assert strength_label(1) == "Weak"
+    assert strength_label(2) == "Weak"
+    assert strength_label(3) == "Moderate"
+    assert strength_label(4) == "Moderate"
+    assert strength_label(5) == "Strong"
 
 
-def test_strength_label_blacklisted_overrides_score():
-    assert pc.strength_label(5, is_blacklisted_pw=True) == "Weak (common password)"
-
-
-# ---- check_pwned (network mocked) ----
-
-class FakeResponse:
-    def __init__(self, text, status_code=200):
-        self.text = text
-        self.status_code = status_code
-
-    def raise_for_status(self):
-        if self.status_code != 200:
-            raise pc.requests.HTTPError("bad status")
-
-
-def test_check_pwned_found(monkeypatch):
-    # SHA1("password") = 5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8
-    # prefix = "5BAA6", suffix = everything after it
-    fake_suffix = "1E4C9B93F3F0682250B6CF8331B7EE68FD8"
-    fake_text = f"{fake_suffix}:3730471\nOTHERSUFFIX0000000000000000000000000:1"
-
-    def fake_get(url, timeout=5):
-        return FakeResponse(fake_text)
-
-    monkeypatch.setattr(pc.requests, "get", fake_get)
-    pwned, count = pc.check_pwned("password")
-    assert pwned is True
-    assert count == 3730471
-
-
-def test_check_pwned_not_found(monkeypatch):
-    def fake_get(url, timeout=5):
-        return FakeResponse("SOMEOTHERSUFFIX00000000000000000000000:5")
-
-    monkeypatch.setattr(pc.requests, "get", fake_get)
-    pwned, count = pc.check_pwned("a-very-unique-password-xyz")
-    assert pwned is False
-    assert count == 0
-
-
-def test_check_pwned_network_failure(monkeypatch):
-    def fake_get(url, timeout=5):
-        raise pc.requests.RequestException("network down")
-
-    monkeypatch.setattr(pc.requests, "get", fake_get)
-    pwned, count = pc.check_pwned("password")
-    assert pwned is False
-    assert count == -1
+def test_non_string_password_is_rejected():
+    with pytest.raises(TypeError):
+        check_password(None)

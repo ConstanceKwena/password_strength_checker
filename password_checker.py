@@ -3,6 +3,10 @@ import sys
 
 
 def check_password(password: str) -> dict:
+
+    if not isinstance(password, str):
+        raise TypeError("password must be a string")
+
     results = {
         "length_ok": len(password) >= 8,
         "has_upper": bool(re.search(r"[A-Z]", password)),
@@ -10,7 +14,15 @@ def check_password(password: str) -> dict:
         "has_digit": bool(re.search(r"\d", password)),
         "has_symbol": bool(re.search(r"[!@#$%^&*(),.?\":{}|<>]", password)),
     }
-    results["score"] = sum(1 for v in results.values() if v is True)
+
+    results["score"] = sum([
+        results["length_ok"],
+        results["has_upper"],
+        results["has_lower"],
+        results["has_digit"],
+        results["has_symbol"],
+    ])
+
     return results
 
 
@@ -33,6 +45,7 @@ def main():
     print(f"Digit:         {'✔' if results['has_digit'] else '✘'}")
     print(f"Symbol:        {'✔' if results['has_symbol'] else '✘'}")
     print(f"\nStrength: {strength_label(results['score'])} ({results['score']}/5)")
+
 
 
 if __name__ == "__main__":
